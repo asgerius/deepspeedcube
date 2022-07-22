@@ -14,9 +14,8 @@ CUDA_PATH = /appl/cuda/11.5.1
 
 all:
 	make clean
-	mkdir -p lib
+	mkdir -p lib/envs
 	make lib/libdsc.so
-	make lib/cube.so
 	@if command -v nvcc ; then\
 		make lib/cube_cuda.so;\
 	fi
@@ -25,7 +24,12 @@ lib/libdsc.so:
 	make lib/astar.so
 	make lib/heap.so
 	make lib/unique.so
-	$(CC) -o $@ lib/astar.so lib/heap.so lib/unique.so $(CFLAGS) $(CSHARED)
+	make lib/envs/envs.so
+	make lib/envs/cube.so
+	$(CC) -o $@ \
+		lib/astar.so lib/heap.so lib/unique.so \
+		lib/envs/envs.so lib/envs/cube.so \
+		$(CFLAGS) $(CSHARED)
 
 lib/astar.so:
 	$(CC) -o $@ deepspeedcube/c/astar.c deepspeedcube/c/hashmap_plus.c $(CFLAGS) $(CSHARED)
@@ -36,7 +40,10 @@ lib/heap.so:
 lib/unique.so:
 	$(CC) -o $@ deepspeedcube/c/unique.c deepspeedcube/c/hashmap_plus.c deepspeedcube/c/hashmap.c/*.c $(CFLAGS) $(CSHARED)
 
-lib/cube.so:
+lib/envs/envs.so:
+	$(CC) -o $@ deepspeedcube/c/envs/envs.c $(CFLAGS) $(CSHARED)
+
+lib/envs/cube.so:
 	$(CC) -o $@ deepspeedcube/c/envs/cube.c $(CFLAGS) $(CSHARED)
 
 lib/cube_cuda.so:

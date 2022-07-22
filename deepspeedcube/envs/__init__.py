@@ -8,10 +8,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from deepspeedcube import device, ptr
+from deepspeedcube import device, ptr, tensor_size, LIBDSC
 
 
-_CUBELIB = ctypes.cdll.LoadLibrary("lib/cube.so")
 if torch.cuda.is_available():
     _CUBELIB_CUDA = ctypes.cdll.LoadLibrary("lib/cube_cuda.so")
 
@@ -19,8 +18,10 @@ class Environment(abc.ABC):
 
     dtype: type
     action_space: torch.Tensor
+    state_shape: torch.Size
     state_oh_size: int
     _solved_state: torch.Tensor
+    state_size: int
 
     @classmethod
     def get_solved(cls) -> torch.Tensor:
@@ -83,6 +84,7 @@ class _CubeEnvironment(Environment):
 
     dtype = torch.uint8
     action_space = torch.arange(12, dtype=torch.uint8)
+    state_shape = torch.Size([20])
     state_oh_size = 480
     _solved_state = torch.tensor(
         [0, 3, 6, 9, 12, 15, 18, 21,
@@ -90,6 +92,7 @@ class _CubeEnvironment(Environment):
         dtype=dtype,
         device=device,
     )
+    state_size = tensor_size(_solved_state)
 
     # If the six sides are represented by an array, the order should be F, B, T, D, L, R
     F, B, T, D, L, R = 0, 1, 2, 3, 4, 5
@@ -156,14 +159,13 @@ class _CubeEnvironment(Environment):
         if state.is_cuda:
             _CUBELIB_CUDA.multi_act(
                 ptr(cls.full_action_maps),
-                # ptr(cls.full_action_maps[1]),
                 ptr(new_state),
                 ptr(action.cuda()),
                 1,
             )
             torch.cuda.synchronize()
         else:
-            _CUBELIB.multi_act(
+            LIBDSC.cube_multi_act(
                 ptr(new_state),
                 ptr(action),
                 1,
@@ -177,14 +179,13 @@ class _CubeEnvironment(Environment):
         if new_states.is_cuda:
             _CUBELIB_CUDA.multi_act(
                 ptr(cls.full_action_maps),
-                # ptr(cls.full_action_maps[1]),
                 ptr(new_states),
                 ptr(actions),
                 len(actions),
             )
             torch.cuda.synchronize()
         else:
-            _CUBELIB.multi_act(
+            LIBDSC.cube_multi_act(
                 ptr(new_states),
                 ptr(actions),
                 len(actions),

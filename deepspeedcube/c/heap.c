@@ -119,7 +119,7 @@ void heap_extract_min(heap *heap, size_t n, float *keys, void *data) {
     }
 }
 
-void heap_insert(heap *heap, size_t n, float *keys, void *data) {
+void heap_insert(heap *heap, size_t n, float *keys, const void *data) {
 
     size_t i;
     for (i = 0; i < n; ++ i) {

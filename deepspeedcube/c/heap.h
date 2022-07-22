@@ -63,7 +63,7 @@ void heap_update_ptrs(heap *heap, float *keys, void *data);
 given arrays in order of ascending keys. */
 void heap_extract_min(heap *heap, size_t n, float *keys, void *data);
 
-void heap_insert(heap *heap, size_t n, float *keys, void *data);
+void heap_insert(heap *heap, size_t n, float *keys, const void *data);
 
 void heap_decrease_key(heap *heap, size_t index, float key);
 

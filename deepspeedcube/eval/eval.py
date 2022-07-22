@@ -9,7 +9,7 @@ from pelutils.parser import JobDescription
 from deepspeedcube import device
 from deepspeedcube.envs import get_env
 from deepspeedcube.envs.gen_states import gen_eval_states
-from deepspeedcube.eval.solver import GreedyValueSolver
+from deepspeedcube.eval.solver import AStar, GreedyValueSolver
 from deepspeedcube.model import ModelConfig, Model
 from deepspeedcube.train.train import TrainConfig
 
@@ -20,6 +20,9 @@ class EvalConfig(DataStorage, json_name="eval_cfg.json", indent=4):
     depths:           list[int]
     states_per_depth: int
     max_time:         float
+    astar_lambda:     float
+    astar_N:          int
+    astar_d:          int
 
 @dataclass
 class EvalResults(DataStorage, json_name="eval_results.json", indent=4):
@@ -34,6 +37,9 @@ def eval(job: JobDescription):
         depths           = list(range(job.max_depth+1)),
         states_per_depth = job.states_per_depth,
         max_time         = job.max_time,
+        astar_lambda     = job.astar_lambda,
+        astar_N          = job.astar_N,
+        astar_d          = job.astar_d,
     )
     log("Got eval config", eval_cfg)
 
@@ -66,6 +72,10 @@ def eval(job: JobDescription):
     log.section("Preparing solver")
     if eval_cfg.solver == "GreedyValueSolver":
         solver = GreedyValueSolver(env, eval_cfg.max_time, models)
+    elif eval_cfg.solver == "AStar":
+        solver = AStar(env, eval_cfg.max_time, models,
+            eval_cfg.astar_lambda, eval_cfg.astar_N, eval_cfg.astar_d,
+        )
     else:
         raise ValueError("Unknown solver '%s'" % eval_cfg.solver)
 
