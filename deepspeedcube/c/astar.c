@@ -38,13 +38,14 @@ void astar_insert_bfs_states(
     state_map *map,
     size_t num_states,
     void *states,
-    float *g,
-    size_t *back_actions
+    int *g,
+    char *back_actions
 ) {
     // Iterate in reverse order in case of duplicate states
     // States earliest in the array will be those with the shortest
-    size_t i;
-    for (i = num_states - 1; i > - 1; -- i) {
+    long i;  // long for signedness
+
+    for (i = num_states - 1; i > -1; -- i) {
         void *state_arr = malloc(map->state_size);
         memcpy(state_arr, states + i * map->state_size, map->state_size);
         node state_node = {
@@ -67,37 +68,47 @@ void astar_update_search_state(
     void *neighbour_states,
     float *h,
     // Actions taken from neighbour_states to get back to states
-    size_t *back_actions,
+    char *back_actions,
     // Index i contains the index into states that neighbour_states[i] came from
     size_t *from_state_index,
 
     state_map *map_p,
     heap *frontier
 ) {
+    printf("c Start update\n");
     struct hashmap *hashmap = map_p->map;
     size_t state_size = map_p->state_size;
 
     // g scores in the states that were expanded from
     // These are precomputed for ease of use
-    float *g_from = malloc(num_states * sizeof(*g_from));
+    printf("c state size %zu\n", state_size);
+    int *g_from = malloc(num_states * sizeof(*g_from));
     size_t i;
-    #pragma omp parallel for
+    node tmp_state_node = {
+        .f = 0,
+        .g = 0,
+        .back_action = 0,
+        .state_size = state_size,
+        .state = NULL,
+    };
+    // #pragma omp parallel for
     for (i = 0; i < num_states; ++ i) {
-        void *state = states + i * state_size;
+        tmp_state_node.state = states + i * state_size;
 
-        node *state_node = hashmap_get(hashmap, state);
+        node *state_node = hashmap_get(hashmap, &tmp_state_node);
         g_from[i] = state_node->g;
     }
+    printf("\nc Got g states\n");
 
     for (i = 0; i < num_neighbour_states; ++ i) {
         const void *neighbour_state = neighbour_states + i * map_p->state_size;
 
         node *neighbour_node = hashmap_get(hashmap, neighbour_state);
-        float g = g_from[from_state_index[i]] + 1;
+        int g = g_from[from_state_index[i]] + 1;
 
         if (neighbour_node != NULL) {
             // State already seen, so relax if a shorter path has been found
-            float prev_g = neighbour_node->g;
+            int prev_g = neighbour_node->g;
             if (g < prev_g) {
                 // Shorter path, so relax
                 neighbour_node->g = g;
@@ -123,18 +134,21 @@ void astar_update_search_state(
     }
 }
 
-size_t *astar_get_back_actions(
+char *astar_get_back_actions(
     size_t state_size,
     void *solved_state,
-    state_map *map
+    state_map *map,
+    void (*act_fn)(void *states, char *actions, size_t n)
 ) {
     node *state_node = hashmap_get(map->map, solved_state);
-    size_t g = round(state_node->g);
-    size_t *back_actions = malloc(g * sizeof(*back_actions));
+    int g = state_node->g;
+    char *back_actions = malloc(g * sizeof(*back_actions));
 
-    -- g;
-    for (g; g > -1; -- g) {
+    for (-- g; g > -1; -- g) {
         back_actions[g] = state_node->back_action;
+        void *prev_state = envs_copy_state(state_node->state, state_node->state_size);
+        act_fn(prev_state, &back_actions[g], 1);
+        free(prev_state);
     }
 
     return back_actions;

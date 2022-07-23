@@ -14,37 +14,18 @@ CUDA_PATH = /appl/cuda/11.5.1
 
 all:
 	make clean
-	mkdir -p lib/envs
+	mkdir -p lib
 	make lib/libdsc.so
 	@if command -v nvcc ; then\
 		make lib/cube_cuda.so;\
 	fi
 
 lib/libdsc.so:
-	make lib/astar.so
-	make lib/heap.so
-	make lib/unique.so
-	make lib/envs/envs.so
-	make lib/envs/cube.so
 	$(CC) -o $@ \
-		lib/astar.so lib/heap.so lib/unique.so \
-		lib/envs/envs.so lib/envs/cube.so \
+		deepspeedcube/c/astar.c deepspeedcube/c/heap.c deepspeedcube/c/unique.c \
+		deepspeedcube/c/envs/envs.c deepspeedcube/c/envs/cube.c \
+		deepspeedcube/c/hashmap_plus.c deepspeedcube/c/hashmap.c/*.c \
 		$(CFLAGS) $(CSHARED)
-
-lib/astar.so:
-	$(CC) -o $@ deepspeedcube/c/astar.c deepspeedcube/c/hashmap_plus.c $(CFLAGS) $(CSHARED)
-
-lib/heap.so:
-	$(CC) -o $@ deepspeedcube/c/heap.c $(CFLAGS) $(CSHARED)
-
-lib/unique.so:
-	$(CC) -o $@ deepspeedcube/c/unique.c deepspeedcube/c/hashmap_plus.c deepspeedcube/c/hashmap.c/*.c $(CFLAGS) $(CSHARED)
-
-lib/envs/envs.so:
-	$(CC) -o $@ deepspeedcube/c/envs/envs.c $(CFLAGS) $(CSHARED)
-
-lib/envs/cube.so:
-	$(CC) -o $@ deepspeedcube/c/envs/cube.c $(CFLAGS) $(CSHARED)
 
 lib/cube_cuda.so:
 	$(CXX) $(OPT) $(ARCH) $(XOPTS) -Xcompiler "-fPIC" -dc \

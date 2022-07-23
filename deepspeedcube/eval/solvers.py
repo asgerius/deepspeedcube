@@ -83,7 +83,10 @@ class AStar(Solver):
         if self.env.is_solved(state):
             return torch.tensor([], dtype=torch.long), self.tt.tock()
 
-        state_map_p = LIBDSC.astar_init_state_map(ctypes.c_float(self.l), self.env.state_size)
+        state_map_p = ctypes.c_void_p(LIBDSC.astar_init_state_map(
+            ctypes.c_float(self.l),
+            self.env.state_size,
+        ))
 
         # Perform BFS as long as the frontier size is less than or equal to N
         TT.profile("BFS")
@@ -92,12 +95,12 @@ class AStar(Solver):
         num_bfs_states = [0, *(len(self.env.action_space) ** np.arange(bfs_iters+1)).cumsum()]
 
         bfs_states = torch.empty((num_bfs_states[-1], *self.env.state_shape), dtype=self.env.dtype)
-        bfs_g = torch.empty(num_bfs_states[-1], dtype=torch.float32)
-        bfs_back_actions = torch.empty(num_bfs_states[-1], dtype=int)
+        bfs_g = torch.empty(num_bfs_states[-1], dtype=torch.int)
+        bfs_back_actions = torch.empty(num_bfs_states[-1], dtype=torch.uint8)
 
         bfs_states[0] = state
         bfs_g[0] = 0
-        bfs_back_actions[0] = 1_000_000_000
+        bfs_back_actions[0] = 255
 
         for i in range(bfs_iters):
             TT.profile("Iteration")
@@ -112,6 +115,7 @@ class AStar(Solver):
             TT.end_profile()
 
         with TT.profile("Insert BFS nodes"):
+            print("bfs insert")
             LIBDSC.astar_insert_bfs_states(
                 state_map_p, len(bfs_states), ptr(bfs_states),
                 ptr(bfs_g), ptr(bfs_back_actions)
@@ -125,50 +129,66 @@ class AStar(Solver):
 
         TT.end_profile()
 
-        # TT.profile("A*")
+        TT.profile("A*")
 
-        # frontier = MinHeap(self.env.state_shape, self.env.dtype)
-        # back_actions = self.env.reverse_moves(
-        #     self.env.action_space.repeat(self.N)
-        # )
-        # from_index = torch.arange(self.N).repeat_interleave(len(self.env.action_space))
+        frontier = MinHeap(self.env.state_shape, self.env.dtype)
+        back_actions = self.env.reverse_moves(
+            self.env.action_space.repeat(self.N)
+        )
+        from_index = torch.arange(self.N).repeat_interleave(len(self.env.action_space))
+        LIBDSC.astar_insert_bfs_states(
+            state_map_p,
+            len(bfs_states),
+            ptr(bfs_states),
+            ptr(bfs_g),
+            ptr(bfs_back_actions)
+        )
 
-        # while self.tt.tock() < self.max_time:
-        #     TT.profile("Iteration")
+        first_iter = True
 
-        #     f, states_to_expand = frontier.extract_min_multiple(self.N)
-        #     neighbour_states = self.env.neighbours(states_to_expand)
+        while self.tt.tock() < self.max_time:
+            TT.profile("Iteration")
 
-        #     if torch.any(self.env.is_solved(neighbour_states)):
-        #         # TODO Actions taken
-        #         LIBDSC.astar_free_state_map(state_map_p)
-        #         return None, self.tt.tock()
+            if first_iter:
+                states_to_expand = bfs_states
+            else:
+                _, states_to_expand = frontier.extract_min_multiple(self.N)
 
-        #     h = self.cost_to_go(neighbour_states)
+            neighbour_states = self.env.neighbours(states_to_expand)
 
-        #     # Expand heap to make sure there is enough room to accomodate new states
-        #     max_frontier_size = len(frontier) + len(self.env.action_space) * self.N
-        #     while len(frontier) < max_frontier_size:
-        #         frontier._expand_heap()
+            if torch.any(self.env.is_solved(neighbour_states)):
+                # TODO Actions taken
+                LIBDSC.astar_free_state_map(state_map_p)
+                return None, self.tt.tock()
 
-        #     LIBDSC.astar_update_search_state(
-        #         len(states_to_expand),
-        #         ptr(states_to_expand),
-        #         len(neighbour_states),
-        #         ptr(neighbour_states),
-        #         ptr(h),
-        #         ptr(back_actions),
-        #         ptr(from_index),
+            h = self.cost_to_go(neighbour_states)
 
-        #         state_map_p,
-        #         frontier._heap_ptr,
-        #     )
+            # Expand heap to make sure there is enough room to accomodate new states
+            max_frontier_size = len(frontier) + len(self.env.action_space) * self.N
+            while len(frontier._keys) < max_frontier_size:
+                frontier._expand_heap()
 
-        #     TT.end_profile()
+            # state_map_p = ctypes.c_void_p(state_map_p)
+            LIBDSC.astar_update_search_state(
+                len(states_to_expand),
+                ptr(states_to_expand),
+                len(neighbour_states),
+                ptr(neighbour_states),
+                ptr(h),
+                ptr(back_actions),
+                ptr(from_index),
 
-        # TT.end_profile()
+                state_map_p,
+                frontier._heap_ptr,
+            )
 
-        # LIBDSC.astar_free_state_map(state_map_p)
+            first_iter = False
+
+            TT.end_profile()
+
+        TT.end_profile()
+
+        LIBDSC.astar_free_state_map(state_map_p)
         return None, self.tt.tock()
 
     @torch.no_grad()

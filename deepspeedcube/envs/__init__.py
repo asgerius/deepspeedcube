@@ -59,14 +59,14 @@ class Environment(abc.ABC):
         return F.one_hot(
             state.long(),
             num_classes=cls.state_oh_size // len(cls._solved_state),
-        ).astype(torch.float32).view(1, -1)
+        ).astype(torch.float).view(1, -1)
 
     @classmethod
     def multiple_oh(cls, states: torch.Tensor) -> torch.Tensor:
         return F.one_hot(
             states.long(),
             num_classes=cls.state_oh_size // len(cls._solved_state),
-        ).to(torch.float32).view(len(states), -1)
+        ).to(torch.float).view(len(states), -1)
 
     @abc.abstractclassmethod
     def reverse_move(cls, action: int) -> int:

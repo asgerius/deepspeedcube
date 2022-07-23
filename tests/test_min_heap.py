@@ -80,7 +80,7 @@ def test_multiple():
 
     while len(heap2):
         n = min(len(heap1), 66)
-        keys1 = torch.empty(n, dtype=torch.float32)
+        keys1 = torch.empty(n, dtype=torch.float)
         data1 = torch.empty((n, *test_size), dtype=test_dtype)
         for i in range(n):
             keys1[i], data1[i] = heap1.extract_min()

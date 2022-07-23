@@ -2,9 +2,9 @@
 #define CUBE_H
 
 #include <stdlib.h>
+#include "envs.h"
 
 typedef char face;
-typedef char action;
 
 void cube_multi_act(face *states, action *actions, size_t n);
 #endif

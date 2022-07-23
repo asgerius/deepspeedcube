@@ -9,7 +9,7 @@ from pelutils.parser import JobDescription
 from deepspeedcube import device
 from deepspeedcube.envs import get_env
 from deepspeedcube.envs.gen_states import gen_eval_states
-from deepspeedcube.eval.solver import AStar, GreedyValueSolver
+from deepspeedcube.eval.solvers import AStar, GreedyValueSolver
 from deepspeedcube.model import ModelConfig, Model
 from deepspeedcube.train.train import TrainConfig
 
@@ -34,7 +34,7 @@ def eval(job: JobDescription):
     log.section("Loading configurations")
     eval_cfg = EvalConfig(
         solver           = job.solver,
-        depths           = list(range(job.max_depth+1)),
+        depths           = [4],# list(range(job.max_depth+1)),
         states_per_depth = job.states_per_depth,
         max_time         = job.max_time,
         astar_lambda     = job.astar_lambda,

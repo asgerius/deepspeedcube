@@ -14,6 +14,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 LIBDSC = ctypes.cdll.LoadLibrary("lib/libdsc.so")
 
+LIBDSC.heap_alloc.restype = ctypes.c_void_p
+LIBDSC.astar_init_state_map.restype = ctypes.c_void_p
+LIBDSC.astar_get_back_actions.restype = ctypes.c_char_p
+
 def ptr(arr: torch.Tensor) -> ctypes:
     return ctypes.c_void_p(arr.data_ptr())
 
