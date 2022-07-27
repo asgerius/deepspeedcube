@@ -16,7 +16,6 @@ int astar_compare(const void *elem1, const void *elem2, void *udata) {
 void astar_node_free(void *elem) {
     node *e = elem;
     free(e->state);
-    free(e);
 }
 
 state_map *astar_init_state_map(float lambda, size_t state_size) {
@@ -59,7 +58,7 @@ void astar_insert_bfs_states(
     }
 }
 
-void astar_update_search_state(
+size_t astar_update_search_state(
     // States that used to be in the frontier
     size_t num_states,
     void *states,
@@ -69,19 +68,19 @@ void astar_update_search_state(
     float *h,
     // Actions taken from neighbour_states to get back to states
     char *back_actions,
+    // Single element array the value of which is the current longest path
+    long *longest_path,
     // Index i contains the index into states that neighbour_states[i] came from
     size_t *from_state_index,
 
     state_map *map_p,
     heap *frontier
 ) {
-    printf("c Start update\n");
     struct hashmap *hashmap = map_p->map;
     size_t state_size = map_p->state_size;
 
     // g scores in the states that were expanded from
     // These are precomputed for ease of use
-    printf("c state size %zu\n", state_size);
     int *g_from = malloc(num_states * sizeof(*g_from));
     size_t i;
     node tmp_state_node = {
@@ -98,12 +97,12 @@ void astar_update_search_state(
         node *state_node = hashmap_get(hashmap, &tmp_state_node);
         g_from[i] = state_node->g;
     }
-    printf("\nc Got g states\n");
 
     for (i = 0; i < num_neighbour_states; ++ i) {
-        const void *neighbour_state = neighbour_states + i * map_p->state_size;
+        tmp_state_node.state = neighbour_states + i * state_size;
+        const void *neighbour_state = tmp_state_node.state;
 
-        node *neighbour_node = hashmap_get(hashmap, neighbour_state);
+        node *neighbour_node = hashmap_get(hashmap, &tmp_state_node);
         int g = g_from[from_state_index[i]] + 1;
 
         if (neighbour_node != NULL) {
@@ -130,26 +129,37 @@ void astar_update_search_state(
             };
 
             hashmap_set(hashmap, &new_node);
+            *longest_path = MAX(g, *longest_path);
         }
     }
+
+    return frontier->num_elems;
 }
 
-char *astar_get_back_actions(
+void astar_get_back_actions(
     size_t state_size,
-    void *solved_state,
+    char *solved_state,
+    char *back_actions,
     state_map *map,
     void (*act_fn)(void *states, char *actions, size_t n)
 ) {
-    node *state_node = hashmap_get(map->map, solved_state);
+    node tmp_state_node = {
+        .f = 0,
+        .g = 0,
+        .back_action = 0,
+        .state_size = map->state_size,
+        .state = solved_state,
+    };
+
+    node *state_node = hashmap_get(map->map, &tmp_state_node);
     int g = state_node->g;
-    char *back_actions = malloc(g * sizeof(*back_actions));
 
     for (-- g; g > -1; -- g) {
         back_actions[g] = state_node->back_action;
-        void *prev_state = envs_copy_state(state_node->state, state_node->state_size);
-        act_fn(prev_state, &back_actions[g], 1);
-        free(prev_state);
-    }
 
-    return back_actions;
+        tmp_state_node.state = envs_copy_state(state_node->state, state_node->state_size);
+        act_fn(tmp_state_node.state, &back_actions[g], 1);
+        state_node = hashmap_get(map->map, &tmp_state_node);
+        free(tmp_state_node.state);
+    }
 }

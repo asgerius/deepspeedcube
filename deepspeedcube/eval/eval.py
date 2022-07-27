@@ -7,7 +7,7 @@ from pelutils import DataStorage, log, TT
 from pelutils.parser import JobDescription
 
 from deepspeedcube import device
-from deepspeedcube.envs import get_env
+from deepspeedcube.envs import get_env, Environment
 from deepspeedcube.envs.gen_states import gen_eval_states
 from deepspeedcube.eval.solvers import AStar, GreedyValueSolver
 from deepspeedcube.model import ModelConfig, Model
@@ -20,6 +20,7 @@ class EvalConfig(DataStorage, json_name="eval_cfg.json", indent=4):
     depths:           list[int]
     states_per_depth: int
     max_time:         float
+    validate:         bool
     astar_lambda:     float
     astar_N:          int
     astar_d:          int
@@ -29,14 +30,21 @@ class EvalResults(DataStorage, json_name="eval_results.json", indent=4):
     solved:           list[int]
     solve_times:      list[list[float]]
 
+def validate(env: Environment, actions: torch.Tensor, state: torch.Tensor) -> bool:
+
+    for action in actions:
+        state = env.move(action, state)
+    return env.is_solved(state)
+
 @torch.no_grad()
 def eval(job: JobDescription):
     log.section("Loading configurations")
     eval_cfg = EvalConfig(
         solver           = job.solver,
-        depths           = [4],# list(range(job.max_depth+1)),
+        depths           = [9],# list(range(job.max_depth+1)),
         states_per_depth = job.states_per_depth,
         max_time         = job.max_time,
+        validate         = job.validate,
         astar_lambda     = job.astar_lambda,
         astar_N          = job.astar_N,
         astar_d          = job.astar_d,
@@ -96,6 +104,9 @@ def eval(job: JobDescription):
             if actions is not None:
                 results.solved[-1] += 1
                 results.solve_times[-1].append(time)
+                if eval_cfg.validate:
+                    assert validate(env, actions, state)
+
         TT.end_profile()
 
     log.section("Saving")

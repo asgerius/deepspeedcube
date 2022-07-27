@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pelutils import log, TT
-from pelutils.parser import Parser, Option
+from pelutils.parser import Parser, Option, Flag
 
 from deepspeedcube import HardwareInfo
 from deepspeedcube.eval.eval import eval
@@ -15,6 +15,7 @@ options = (
     Option("astar-lambda",     default=1, type=float),
     Option("astar-N",          default=100),
     Option("astar-d",          default=1),
+    Flag("validate"),
 )
 
 if __name__ == "__main__":
